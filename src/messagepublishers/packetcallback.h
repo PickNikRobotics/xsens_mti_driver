@@ -33,7 +33,7 @@
 #ifndef PACKETCALLBACK_H
 #define PACKETCALLBACK_H
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <xstypes/xsdatapacket.h>
 
 const char* DEFAULT_FRAME_ID = "imu_link";
@@ -41,7 +41,7 @@ const char* DEFAULT_FRAME_ID = "imu_link";
 class PacketCallback
 {
     public:
-        virtual void operator()(const XsDataPacket &, ros::Time) = 0;
+        virtual void operator()(const XsDataPacket &, rclcpp::Time) = 0;
 };
 
 #endif

@@ -33,7 +33,7 @@
 #ifndef XDACALLBACK_H
 #define XDACALLBACK_H
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <xscontroller/xscallback.h>
 #include <mutex>
 #include <condition_variable>
@@ -42,7 +42,7 @@
 struct XsDataPacket;
 struct XsDevice;
 
-typedef std::pair<ros::Time, XsDataPacket> RosXsDataPacket;
+typedef std::pair<rclcpp::Time, XsDataPacket> RosXsDataPacket;
 
 class XdaCallback : public XsCallback
 {

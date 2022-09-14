@@ -33,12 +33,12 @@
 #ifndef XDAINTERFACE_H
 #define XDAINTERFACE_H
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 
 #include "xdacallback.h"
 #include <xstypes/xsportinfo.h>
 
-#include "chrono"
+#include <chrono>
 
 struct XsControl;
 struct XsDevice;
@@ -49,17 +49,20 @@ class PacketCallback;
 class XdaInterface
 {
 public:
-	XdaInterface();
+	XdaInterface(rclcpp::Node::SharedPtr node_ptr);
 	~XdaInterface();
 
 	void spinFor(std::chrono::milliseconds timeout);
-	void registerPublishers(ros::NodeHandle &node);
 
 	bool connectDevice();
 	bool prepare();
 	void close();
 
 private:
+
+	rclcpp::Node::SharedPtr node;
+
+	void registerPublishers();
 	void registerCallback(PacketCallback *cb);
 	bool handleError(std::string error);
 
@@ -68,6 +71,23 @@ private:
 	XsPortInfo m_port;
 	XdaCallback m_xdaCallback;
 	std::list<PacketCallback *> m_callbacks;
+
+	template <class PublisherT>
+	void registerImpl(const char* param_name)
+	{
+		bool should_publish = true;
+		node->declare_parameter(param_name, should_publish);
+		node->get_parameter(param_name, should_publish);
+		if (should_publish)
+		{
+			registerCallback(new PublisherT(node));
+		}
+	}
+
+	rclcpp::Logger logger() const
+	{
+		return node->get_logger();
+	}
 };
 
 #endif

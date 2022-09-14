@@ -34,12 +34,11 @@
 #define IMUPUBLISHER_H
 
 #include "packetcallback.h"
-#include <sensor_msgs/Imu.h>
-#include <diagnostic_updater/publisher.h>
+#include <sensor_msgs/msg/imu.hpp>
 
 static void variance_from_stddev_param(std::string param, double *variance_out)
 {
-    std::vector<double> stddev;
+   /* std::vector<double> stddev;
     if (ros::param::get(param, stddev))
     {
         if (stddev.size() == 3)
@@ -49,37 +48,32 @@ static void variance_from_stddev_param(std::string param, double *variance_out)
         }
         else
         {
-            ROS_WARN("Wrong size of param: %s, must be of size 3", param.c_str());
+            static rclcpp::Logger LOG = rclcpp::get_logger("ImuPublisher");
+            RCLCPP_WARN(LOG, "Wrong size of param: %s, must be of size 3", param.c_str());
         }
     }
     else
     {
         memset(variance_out, 0, 3 * sizeof(double));
-    }
+    }*/
 }
 
 struct ImuPublisher : public PacketCallback
 {
-    ros::Publisher inner_pub;
-    diagnostic_updater::Updater updater;
-    double expected_frequency;
-    double frequency_tolerance = 0.1;
-    diagnostic_updater::DiagnosedPublisher<sensor_msgs::Imu> pub;
+    rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr pub;
     std::string frame_id = DEFAULT_FRAME_ID;
-
+    rclcpp::Logger LOG = rclcpp::get_logger("ImuPublisher");
 
     double orientation_variance[3];
     double linear_acceleration_variance[3];
     double angular_velocity_variance[3];
 
-    ImuPublisher(ros::NodeHandle &node) :
-        expected_frequency(ros::param::param("~expected_frequency", 100)),
-        inner_pub(node.advertise<sensor_msgs::Imu>("imu/data", ros::param::param("~publisher_queue_size", 5))),
-        updater(node),
-        pub(inner_pub, updater, {&expected_frequency, &expected_frequency, frequency_tolerance}, {})
+    ImuPublisher(rclcpp::Node::SharedPtr &node)
     {
-        updater.setHardwareID("none");
-        ros::param::get("~frame_id", frame_id);
+         int pub_queue_size = 5;
+        node->get_parameter("publisher_queue_size", pub_queue_size);
+        pub = node->create_publisher<sensor_msgs::msg::Imu>("imu/data", pub_queue_size);
+        node->get_parameter("frame_id", frame_id);
 
         // REP 145: Conventions for IMU Sensor Drivers (http://www.ros.org/reps/rep-0145.html)
         variance_from_stddev_param("~orientation_stddev", orientation_variance);
@@ -87,13 +81,13 @@ struct ImuPublisher : public PacketCallback
         variance_from_stddev_param("~linear_acceleration_stddev", linear_acceleration_variance);
     }
 
-    void operator()(const XsDataPacket &packet, ros::Time timestamp)
+    void operator()(const XsDataPacket &packet, rclcpp::Time timestamp)
     {
         bool quaternion_available = packet.containsOrientation();
         bool gyro_available = packet.containsCalibratedGyroscopeData();
         bool accel_available = packet.containsCalibratedAcceleration();
 
-        geometry_msgs::Quaternion quaternion;
+        geometry_msgs::msg::Quaternion quaternion;
         if (quaternion_available)
         {
             XsQuaternion q = packet.orientationQuaternion();
@@ -104,7 +98,7 @@ struct ImuPublisher : public PacketCallback
             quaternion.z = q.z();
         }
 
-        geometry_msgs::Vector3 gyro;
+        geometry_msgs::msg::Vector3 gyro;
         if (gyro_available)
         {
             XsVector g = packet.calibratedGyroscopeData();
@@ -113,7 +107,7 @@ struct ImuPublisher : public PacketCallback
             gyro.z = g[2];
         }
 
-        geometry_msgs::Vector3 accel;
+        geometry_msgs::msg::Vector3 accel;
         if (accel_available)
         {
             XsVector a = packet.calibratedAcceleration();
@@ -125,7 +119,7 @@ struct ImuPublisher : public PacketCallback
         // Imu message, publish if any of the fields is available
         if (quaternion_available || accel_available || gyro_available)
         {
-            sensor_msgs::Imu msg;
+            sensor_msgs::msg::Imu msg;
 
             msg.header.stamp = timestamp;
             msg.header.frame_id = frame_id;
@@ -166,8 +160,7 @@ struct ImuPublisher : public PacketCallback
                 msg.linear_acceleration_covariance[0] = -1; // mark as not available
             }
 
-            pub.publish(msg);
-            updater.update();
+            pub->publish(msg);
         }
     }
 };

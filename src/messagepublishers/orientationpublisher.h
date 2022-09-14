@@ -34,27 +34,27 @@
 #define ORIENTATIONPUBLISHER_H
 
 #include "packetcallback.h"
-#include <geometry_msgs/QuaternionStamped.h>
+#include <geometry_msgs/msg/quaternion_stamped.hpp>
 
 struct OrientationPublisher : public PacketCallback
 {
-    ros::Publisher pub;
+    rclcpp::Publisher<geometry_msgs::msg::QuaternionStamped>::SharedPtr pub;
     std::string frame_id = DEFAULT_FRAME_ID;
 
 
-    OrientationPublisher(ros::NodeHandle &node)
+    OrientationPublisher(rclcpp::Node::SharedPtr &node)
     {
         int pub_queue_size = 5;
-        ros::param::get("~publisher_queue_size", pub_queue_size);
-        pub = node.advertise<geometry_msgs::QuaternionStamped>("filter/quaternion", pub_queue_size);
-        ros::param::get("~frame_id", frame_id);
+        node->get_parameter("publisher_queue_size", pub_queue_size);
+        pub = node->create_publisher<geometry_msgs::msg::QuaternionStamped>("filter/quaternion", pub_queue_size);
+        node->get_parameter("frame_id", frame_id);
     }
 
-    void operator()(const XsDataPacket &packet, ros::Time timestamp)
+    void operator()(const XsDataPacket &packet, rclcpp::Time timestamp)
     {
         if (packet.containsOrientation())
         {
-            geometry_msgs::QuaternionStamped msg;
+            geometry_msgs::msg::QuaternionStamped msg;
 
             msg.header.stamp = timestamp;
             msg.header.frame_id = frame_id;
@@ -66,7 +66,7 @@ struct OrientationPublisher : public PacketCallback
             msg.quaternion.y = q.y();
             msg.quaternion.z = q.z();
 
-            pub.publish(msg);
+            pub->publish(msg);
         }
     }
 };

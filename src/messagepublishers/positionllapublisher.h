@@ -34,27 +34,27 @@
 #define POSITIONLLAPUBLISHER_H
 
 #include "packetcallback.h"
-#include <geometry_msgs/Vector3Stamped.h>
+#include <geometry_msgs/msg/vector3_stamped.hpp>
 
 struct PositionLLAPublisher : public PacketCallback
 {
-    ros::Publisher pub;
+    rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub;
     std::string frame_id = DEFAULT_FRAME_ID;
 
 
-    PositionLLAPublisher(ros::NodeHandle &node)
+    PositionLLAPublisher(rclcpp::Node::SharedPtr &node)
     {
         int pub_queue_size = 5;
-        ros::param::get("~publisher_queue_size", pub_queue_size);
-        pub = node.advertise<geometry_msgs::Vector3Stamped>("filter/positionlla", pub_queue_size);
-        ros::param::get("~frame_id", frame_id);
+        node->get_parameter("publisher_queue_size", pub_queue_size);
+        pub = node->create_publisher<geometry_msgs::msg::Vector3Stamped>("filter/positionlla", pub_queue_size);
+        node->get_parameter("frame_id", frame_id);
     }
 
-    void operator()(const XsDataPacket &packet, ros::Time timestamp)
+    void operator()(const XsDataPacket &packet, rclcpp::Time timestamp)
     {
         if (packet.containsPositionLLA())
         {
-            geometry_msgs::Vector3Stamped msg;
+            geometry_msgs::msg::Vector3Stamped msg;
 
             msg.header.stamp = timestamp;
             msg.header.frame_id = frame_id;
@@ -65,7 +65,7 @@ struct PositionLLAPublisher : public PacketCallback
             msg.vector.y = p[1];
             msg.vector.z = p[2];
 
-            pub.publish(msg);
+            pub->publish(msg);
         }
     }
 };

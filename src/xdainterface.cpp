@@ -54,19 +54,29 @@
 #include "messagepublishers/positionllapublisher.h"
 #include "messagepublishers/velocitypublisher.h"
 
-
-
-XdaInterface::XdaInterface()
-	: m_device(nullptr)
+XdaInterface::XdaInterface(rclcpp::Node::SharedPtr node_ptr)
+  : node(node_ptr),
+    m_device(nullptr)
 {
-	ROS_INFO("Creating XsControl object...");
+	RCLCPP_INFO(logger(), "Creating XsControl object...");
 	m_control = XsControl::construct();
 	assert(m_control != 0);
+
+	node->declare_parameter<int>("publisher_queue_size", 5);
+	node->declare_parameter<std::string>("frame_id", DEFAULT_FRAME_ID);
+	node->declare_parameter<double>("expected_frequency", 100.0);
+
+	node->declare_parameter<int>("baudrate", 0);
+	node->declare_parameter<std::string>("device_id", "");
+	node->declare_parameter<std::string>("port", "");
+	node->declare_parameter<std::string>("log_file", "");
+
+	registerPublishers();
 }
 
 XdaInterface::~XdaInterface()
 {
-	ROS_INFO("Cleaning up ...");
+  RCLCPP_INFO(logger(), "Cleaning up ...");
 	close();
 	m_control->destruct();
 }
@@ -84,115 +94,80 @@ void XdaInterface::spinFor(std::chrono::milliseconds timeout)
 	}
 }
 
-void XdaInterface::registerPublishers(ros::NodeHandle &node)
+void XdaInterface::registerPublishers()
 {
-	bool should_publish;
+	registerImpl<ImuPublisher>("pub_imu");
 
-	if (ros::param::get("~pub_imu", should_publish) && should_publish)
-	{
-		registerCallback(new ImuPublisher(node));
-	}
-	if (ros::param::get("~pub_quaternion", should_publish) && should_publish)
-	{
-		registerCallback(new OrientationPublisher(node));
-	}
-	if (ros::param::get("~pub_acceleration", should_publish) && should_publish)
-	{
-		registerCallback(new AccelerationPublisher(node));
-	}
-	if (ros::param::get("~pub_angular_velocity", should_publish) && should_publish)
-	{
-		registerCallback(new AngularVelocityPublisher(node));
-	}
-	if (ros::param::get("~pub_mag", should_publish) && should_publish)
-	{
-		registerCallback(new MagneticFieldPublisher(node));
-	}
-	if (ros::param::get("~pub_dq", should_publish) && should_publish)
-	{
-		registerCallback(new OrientationIncrementsPublisher(node));
-	}
-	if (ros::param::get("~pub_dv", should_publish) && should_publish)
-	{
-		registerCallback(new VelocityIncrementPublisher(node));
-	}
-	if (ros::param::get("~pub_sampletime", should_publish) && should_publish)
-	{
-		registerCallback(new TimeReferencePublisher(node));
-	}
-	if (ros::param::get("~pub_temperature", should_publish) && should_publish)
-	{
-		registerCallback(new TemperaturePublisher(node));
-	}
-	if (ros::param::get("~pub_pressure", should_publish) && should_publish)
-	{
-		registerCallback(new PressurePublisher(node));
-	}
-	if (ros::param::get("~pub_gnss", should_publish) && should_publish)
-	{
-		registerCallback(new GnssPublisher(node));
-	}
-	if (ros::param::get("~pub_twist", should_publish) && should_publish)
-	{
-		registerCallback(new TwistPublisher(node));
-	}
-	if (ros::param::get("~pub_free_acceleration", should_publish) && should_publish)
-	{
-		registerCallback(new FreeAccelerationPublisher(node));
-	}
-	if (ros::param::get("~pub_transform", should_publish) && should_publish)
-	{
-		registerCallback(new TransformPublisher(node));
-	}
-	if (ros::param::get("~pub_positionLLA", should_publish) && should_publish)
-	{
-		registerCallback(new PositionLLAPublisher(node));
-	}
-	if (ros::param::get("~pub_velocity", should_publish) && should_publish)
-	{
-		registerCallback(new VelocityPublisher(node));
-	}
+	registerImpl<OrientationPublisher>("pub_quaternion");
+
+	registerImpl<AccelerationPublisher>("pub_acceleration");
+
+	registerImpl<AngularVelocityPublisher>("pub_angular_velocity");
+
+	registerImpl<MagneticFieldPublisher>("pub_mag");
+
+	registerImpl<OrientationIncrementsPublisher>("pub_dq");
+
+	registerImpl<VelocityIncrementPublisher>("pub_dv");
+
+	registerImpl<TimeReferencePublisher>("pub_sampletime");
+
+	registerImpl<TemperaturePublisher>("pub_temperature");
+
+	registerImpl<PressurePublisher>("pub_pressure");
+
+	registerImpl<GnssPublisher>("pub_gnss");
+
+	registerImpl<TwistPublisher>("pub_twist");
+
+	registerImpl<FreeAccelerationPublisher>("pub_free_acceleration");
+
+	registerImpl<TransformPublisher>("pub_transform");
+
+	registerImpl<PositionLLAPublisher>("pub_positionLLA");
+
+	registerImpl<VelocityPublisher>("pub_velocity");
 }
 
 bool XdaInterface::connectDevice()
 {
 	// Read baudrate parameter if set
 	XsBaudRate baudrate = XBR_Invalid;
-	if (ros::param::has("~baudrate"))
+	int baudrateParam = 0;
+	node->get_parameter("baudrate", baudrateParam);
+	if (baudrateParam != 0)
 	{
-		int baudrateParam = 0;
-		ros::param::get("~baudrate", baudrateParam);
-		ROS_INFO("Found baudrate parameter: %d", baudrateParam);
+		RCLCPP_INFO(logger(), "Found baudrate parameter: %d", baudrateParam);
 		baudrate = XsBaud::numericToRate(baudrateParam);
 	}
+
 	// Read device ID parameter
 	bool checkDeviceID = false;
 	std::string deviceId;
-	if (ros::param::has("~device_id"))
+	node->get_parameter("device_id", deviceId);
+	if (!deviceId.empty())
 	{
-		ros::param::get("~device_id", deviceId);
 		checkDeviceID = true;
-		ROS_INFO("Found device ID parameter: %s.",deviceId.c_str());
-
+		RCLCPP_INFO(logger(), "Found device ID parameter: %s.",deviceId.c_str());
 	}
+
 	// Read port parameter if set
 	XsPortInfo mtPort;
-	if (ros::param::has("~port"))
+	std::string portName;
+	node->get_parameter("port", portName);
+	if (!portName.empty())
 	{
-		std::string portName;
-		ros::param::get("~port", portName);
-		ROS_INFO("Found port name parameter: %s", portName.c_str());
+		RCLCPP_INFO(logger(), "Found port name parameter: %s", portName.c_str());
 		mtPort = XsPortInfo(portName, baudrate);
-		ROS_INFO("Scanning port %s ...", portName.c_str());
+		RCLCPP_INFO(logger(), "Scanning port %s ...", portName.c_str());
 		if (!XsScanner::scanPort(mtPort, baudrate))
 			return handleError("No MTi device found. Verify port and baudrate.");
 		if (checkDeviceID && mtPort.deviceId().toString().c_str() != deviceId)
 			return handleError("No MTi device found with matching device ID.");
-
 	}
 	else
 	{
-		ROS_INFO("Scanning for devices...");
+		RCLCPP_INFO(logger(), "Scanning for devices...");
 		XsPortInfoArray portInfoArray = XsScanner::scanPorts(baudrate);
 
 		for (auto const &portInfo : portInfoArray)
@@ -219,16 +194,16 @@ bool XdaInterface::connectDevice()
 	if (mtPort.empty())
 		return handleError("No MTi device found.");
 
-	ROS_INFO("Found a device with ID: %s @ port: %s, baudrate: %d", mtPort.deviceId().toString().toStdString().c_str(), mtPort.portName().toStdString().c_str(), XsBaud::rateToNumeric(mtPort.baudrate()));
+	RCLCPP_INFO(logger(), "Found a device with ID: %s @ port: %s, baudrate: %d", mtPort.deviceId().toString().toStdString().c_str(), mtPort.portName().toStdString().c_str(), XsBaud::rateToNumeric(mtPort.baudrate()));
 
-	ROS_INFO("Opening port %s ...", mtPort.portName().toStdString().c_str());
+	RCLCPP_INFO(logger(), "Opening port %s ...", mtPort.portName().toStdString().c_str());
 	if (!m_control->openPort(mtPort))
 		return handleError("Could not open port");
 
 	m_device = m_control->device(mtPort.deviceId());
 	assert(m_device != 0);
 
-	ROS_INFO("Device: %s, with ID: %s opened.", m_device->productCode().toStdString().c_str(), m_device->deviceId().toString().c_str());
+	RCLCPP_INFO(logger(), "Device: %s, with ID: %s opened.", m_device->productCode().toStdString().c_str(), m_device->deviceId().toString().c_str());
 
 	m_device->addCallbackHandler(&m_xdaCallback);
 
@@ -246,19 +221,20 @@ bool XdaInterface::prepare()
 	if (!m_device->readEmtsAndDeviceConfiguration())
 		return handleError("Could not read device configuration");
 
-	ROS_INFO("Measuring ...");
+	RCLCPP_INFO(logger(), "Measuring ...");
 	if (!m_device->gotoMeasurement())
 		return handleError("Could not put device into measurement mode");
 
 	std::string logFile;
-	if (ros::param::get("~log_file", logFile))
+	node->get_parameter("log_file", logFile);
+	if (!logFile.empty())
 	{
 		if (m_device->createLogFile(logFile) != XRV_OK)
 			return handleError("Failed to create a log file! (" + logFile + ")");
 		else
-			ROS_INFO("Created a log file: %s", logFile.c_str());
+	RCLCPP_INFO(logger(), "Created a log file: %s", logFile.c_str());
 
-		ROS_INFO("Recording to %s ...", logFile.c_str());
+	RCLCPP_INFO(logger(), "Recording to %s ...", logFile.c_str());
 		if (!m_device->startRecording())
 			return handleError("Could not start recording");
 	}
@@ -284,7 +260,7 @@ void XdaInterface::registerCallback(PacketCallback *cb)
 
 bool XdaInterface::handleError(std::string error)
 {
-	ROS_ERROR("%s", error.c_str());
+	RCLCPP_ERROR(logger(), "%s", error.c_str());
 	close();
 	return false;
 }

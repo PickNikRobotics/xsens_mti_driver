@@ -30,7 +30,7 @@
 //  ARBITRATORS APPOINTED IN ACCORDANCE WITH SAID RULES.
 //  
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include "xdainterface.h"
 
 #include <iostream>
@@ -44,12 +44,10 @@ Journaller *gJournal = 0;
 
 int main(int argc, char *argv[])
 {
-	ros::init(argc, argv, "xsens_driver");
-	ros::NodeHandle node;
+	rclcpp::init(argc, argv);
+	auto node = std::make_shared<rclcpp::Node>("xsens_driver");
 
-	XdaInterface *xdaInterface = new XdaInterface();
-
-	xdaInterface->registerPublishers(node);
+	XdaInterface *xdaInterface = new XdaInterface(node);
 
 	if (!xdaInterface->connectDevice())
 		return -1;
@@ -57,11 +55,11 @@ int main(int argc, char *argv[])
 	if (!xdaInterface->prepare())
 		return -1;
 
-	while (ros::ok())
+	while (rclcpp::ok())
 	{
 		xdaInterface->spinFor(milliseconds(100));
 
-		ros::spinOnce();
+		rclcpp::spin_some(node);
 	}
 
 	delete xdaInterface;
