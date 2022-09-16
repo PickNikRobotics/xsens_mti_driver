@@ -38,7 +38,8 @@
 
 static void variance_from_stddev_param(std::string param, double *variance_out)
 {
-   /* std::vector<double> stddev;
+    // not ported to ROS2 yet
+    /*std::vector<double> stddev;
     if (ros::param::get(param, stddev))
     {
         if (stddev.size() == 3)
@@ -52,10 +53,10 @@ static void variance_from_stddev_param(std::string param, double *variance_out)
             RCLCPP_WARN(LOG, "Wrong size of param: %s, must be of size 3", param.c_str());
         }
     }
-    else
+    else*/
     {
         memset(variance_out, 0, 3 * sizeof(double));
-    }*/
+    }
 }
 
 struct ImuPublisher : public PacketCallback

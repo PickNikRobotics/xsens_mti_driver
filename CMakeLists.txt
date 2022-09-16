@@ -51,9 +51,7 @@ target_link_libraries(
 install(
   TARGETS xsens_mti_node
   EXPORT xsens_mti_nodeTargets
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 # Install directories
@@ -67,3 +65,5 @@ install(
 add_custom_command(TARGET xsens_mti_node
     PRE_BUILD COMMAND +make -C ${CMAKE_CURRENT_SOURCE_DIR}/lib/xspublic
 )
+
+ament_package()

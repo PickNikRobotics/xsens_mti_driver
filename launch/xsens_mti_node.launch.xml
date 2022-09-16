@@ -3,7 +3,7 @@
     Make sure to use different param files for each sensor. -->
     <!-- <group ns="sensor_1"> -->
         <node  name="xsens_mti_node" pkg="xsens_mti_driver" exec="xsens_mti_node" output="screen">
-            <param from="$(find xsens_mti_driver)/param/xsens_mti_node.yaml" />
+            <param from="$(find-pkg-share xsens_mti_driver)/param/xsens_mti_node.yaml" />
         </node>
     <!-- </group> -->
 </launch>
